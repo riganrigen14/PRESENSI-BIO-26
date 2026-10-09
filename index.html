@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aplikasi Presensi Kelas BIO B 26</title>
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; display: flex; justify-content: center; }
+    .container { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 100%; max-width: 800px; }
+    h2 { color: #333; margin-top: 0; text-align: center; }
+    
+    .form-group { margin-bottom: 20px; background: #eef2f3; padding: 15px; border-radius: 8px; }
+    label { font-weight: bold; color: #555; }
+    select { padding: 8px; border-radius: 4px; border: 1px solid #ccc; font-size: 16px; margin-left: 10px; }
+    
+    .loading-text { text-align: center; color: #888; font-style: italic; margin: 20px 0; }
+    
+    .table-container { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border-bottom: 1px solid #ddd; padding: 12px 8px; text-align: left; }
+    th { background-color: #f8f9fa; color: #333; }
+    tr:hover { background-color: #f1f5f8; }
+    
+    .btn-group { display: flex; gap: 5px; }
+    button { padding: 8px 12px; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; color: white; transition: 0.2s; }
+    .btn-hadir { background-color: #28a745; } .btn-hadir:hover { background-color: #218838; }
+    .btn-sakit { background-color: #17a2b8; } .btn-sakit:hover { background-color: #138496; }
+    .btn-izin { background-color: #ffc107; color: #333; } .btn-izin:hover { background-color: #e0a800; }
+    .btn-alpa { background-color: #dc3545; } .btn-alpa:hover { background-color: #c82333; }
+    
+    .status-cell { font-weight: bold; font-size: 14px; }
+    .status-sukses { color: #28a745; }
+    .status-proses { color: #007bff; }
+    .status-gagal { color: #dc3545; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h2>Presensi Kelas</h2>
+    
+    <div class="form-group">
+      <label for="pertemuan">Pilih Pertemuan Ke: </label>
+      <select id="pertemuan">
+        <script>
+          for(let i=1; i<=16; i++){
+            document.write(`<option value="${i}">Pertemuan ${i}</option>`);
+          }
+        </script>
+      </select>
+    </div>
+
+    <div id="loading" class="loading-text">Sedang memuat daftar mahasiswa dari spreadsheet...</div>
+
+    <div class="table-container">
+      <table id="tabel-presensi" style="display: none;">
+        <thead>
+          <tr>
+            <th>NIM</th>
+            <th>Nama Mahasiswa</th>
+            <th>Aksi (Klik untuk Absen)</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="daftar-mahasiswa">
+          <!-- Data mahasiswa akan dimunculkan di sini secara otomatis -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // GANTI DENGAN URL WEB APP GOOGLE APPS SCRIPT ANDA
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwz-6BewCU_fah51rFfCEIWFLSDyMykGF_HOl5KbFHhVoM_YjcmVVfhXbKSThFdHWpo/exec'; 
+
+    // Ambil data mahasiswa ketika web pertama kali dibuka
+    window.onload = function() {
+      fetch(SCRIPT_URL)
+        .then(response => response.json())
+        .then(data => {
+          if(data.result === 'success') {
+            tampilkanTabel(data.students);
+          }
+        })
+        .catch(error => {
+          document.getElementById('loading').innerText = "Gagal memuat data. Pastikan URL sudah benar.";
+          document.getElementById('loading').style.color = "red";
+        });
+    }
+
+    // Fungsi untuk merender nama dan tombol ke dalam tabel
+    function tampilkanTabel(students) {
+      const tbody = document.getElementById('daftar-mahasiswa');
+      let barisHTML = '';
+      
+      students.forEach(student => {
+        barisHTML += `
+          <tr>
+            <td>${student.nim}</td>
+            <td>${student.nama}</td>
+            <td>
+              <div class="btn-group">
+                <button class="btn-hadir" onclick="kirimPresensi('${student.nim}', '.', this)" title="Hadir">H</button>
+                <button class="btn-sakit" onclick="kirimPresensi('${student.nim}', 'S', this)" title="Sakit">S</button>
+                <button class="btn-izin" onclick="kirimPresensi('${student.nim}', 'I', this)" title="Izin">I</button>
+                <button class="btn-alpa" onclick="kirimPresensi('${student.nim}', 'A', this)" title="Alpa">A</button>
+              </div>
+            </td>
+            <td id="status-${student.nim}" class="status-cell">-</td>
+          </tr>
+        `;
+      });
+      
+      tbody.innerHTML = barisHTML;
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('tabel-presensi').style.display = 'table';
+    }
+
+    // Fungsi saat tombol absen di klik
+    function kirimPresensi(nim, statusKehadiran, elemenTombol) {
+      const pertemuan = document.getElementById('pertemuan').value;
+      const statusText = document.getElementById(`status-${nim}`);
+      
+      // Update tulisan status jadi Proses
+      statusText.className = "status-cell status-proses";
+      statusText.innerText = "Menyimpan...";
+
+      const payload = new URLSearchParams({
+        'nim': nim,
+        'pertemuan': pertemuan,
+        'status': statusKehadiran
+      });
+
+      fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: payload
+      })
+      .then(response => response.json())
+      .then(data => {
+        if(data.result === "success") {
+          statusText.className = "status-cell status-sukses";
+          // Tampilkan keterangan sukses (Hadir/Sakit/Izin/Alpa)
+          let label = statusKehadiran === '.' ? 'Hadir' : 
+                      statusKehadiran === 'S' ? 'Sakit' : 
+                      statusKehadiran === 'I' ? 'Izin' : 'Alpa';
+          statusText.innerText = "✓ " + label;
+        } else {
+          statusText.className = "status-cell status-gagal";
+          statusText.innerText = "✗ Gagal";
+        }
+      })
+      .catch(error => {
+        statusText.className = "status-cell status-gagal";
+        statusText.innerText = "✗ Error";
+      });
+    }
+  </script>
+
+</body>
+</html>
